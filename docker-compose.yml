@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: mpoints
+      POSTGRES_PASSWORD: mpoints
+      POSTGRES_DB: membership_points
+    volumes:
+      - mpoints_pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mpoints -d membership_points"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 12s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_DSN: "host=db user=mpoints password=mpoints dbname=membership_points port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+      GIN_MODE: release
+    expose:
+      - "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${MEMBERSHIP_WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  mpoints_pg_data:
